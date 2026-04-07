@@ -11,5 +11,3 @@ OVERHEAD_THRESHOLD = 5  # degrees — ISS must be within this range to count as 
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
 
-# Timing
-CHECK_INTERVAL = 60  # seconds between ISS position checks

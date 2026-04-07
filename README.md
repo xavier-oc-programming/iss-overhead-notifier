@@ -1,6 +1,6 @@
 # ISS Overhead Notifier
 
-Polls the ISS position every 60 seconds and sends an email notification when the station is overhead and it is dark outside.
+Checks the ISS position every 5 minutes via GitHub Actions and sends an email notification when the station is overhead and it is dark outside.
 
 ## Table of Contents
 
@@ -23,18 +23,22 @@ Polls the ISS position every 60 seconds and sends an email notification when the
 
 ## Quick start
 
+**Local (original build or manual advanced run):**
+
 ```bash
 pip install -r requirements.txt
 cp .env.example .env   # fill in your Gmail address, app password, and recipient
 python menu.py         # select 1 (original) or 2 (advanced), or run builds directly
 ```
 
-Run a build directly:
+**Automated (advanced build via GitHub Actions):**
 
-```bash
-python original/main.py
-python advanced/main.py
-```
+1. Fork or push this repo to your GitHub account.
+2. Go to **Settings → Secrets and variables → Actions**.
+3. Add three repository secrets: `MY_EMAIL`, `MY_PASSWORD`, `TO_EMAIL`.
+4. The workflow runs automatically every 5 minutes — no server required.
+
+To trigger a check manually: **Actions → ISS Overhead Check → Run workflow**.
 
 ---
 
@@ -45,37 +49,41 @@ python advanced/main.py
 | ISS position check | ✓ | ✓ |
 | Sunrise/sunset check | ✓ | ✓ |
 | Email notification | ✓ | ✓ |
-| 60-second polling loop | ✓ | ✓ |
+| 60-second polling loop | ✓ | — |
 | Credentials via `.env` | — | ✓ |
 | OOP (`ISSClient`, `EmailNotifier`) | — | ✓ |
 | All constants in `config.py` | — | ✓ |
-| Per-iteration error handling | — | ✓ |
-| Run counter logging | — | ✓ |
+| GitHub Actions scheduling (every 5 min) | — | ✓ |
+| Single-run, serverless | — | ✓ |
 | Configurable overhead threshold | — | ✓ |
+| Manual trigger via Actions tab | — | ✓ |
 
 ---
 
 ## Usage
 
-Both builds run as a polling loop. Start them and leave them running. They will log to stdout and send an email when the ISS is visible.
-
-**Original:**
+**Original** — polling loop, run locally and leave it running:
 
 ```bash
 python original/main.py
 # (no output until an email is sent)
 ```
 
-**Advanced:**
+**Advanced** — single-run, triggered by GitHub Actions every 5 minutes:
 
 ```bash
+# Run manually for one check:
 python advanced/main.py
-# [run 1] ISS overhead=False, night=True — no action.
-# [run 2] ISS overhead=False, night=True — no action.
-# [run 3] ISS overhead=True, night=True — email sent.
+# ISS overhead=False, night=True — no action.
 ```
 
-**Environment variables** required in `.env`:
+GitHub Actions output (visible in the Actions tab):
+
+```
+ISS overhead=True, night=True — email sent.
+```
+
+**Credentials** for local runs go in `.env`:
 
 ```
 MY_EMAIL=your_gmail@gmail.com
@@ -83,12 +91,14 @@ MY_PASSWORD=your_app_password
 TO_EMAIL=recipient@example.com
 ```
 
+For GitHub Actions, add the same three values as repository secrets (never in `.env`).
+
 ---
 
 ## Data flow
 
 ```
-1. WAIT        time.sleep(60) — pause before each check
+1. TRIGGER     GitHub Actions cron (*/5 * * * *) or manual dispatch
 2. FETCH ISS   GET http://api.open-notify.org/iss-now.json
                  → JSON: { "iss_position": { "latitude": "...", "longitude": "..." } }
 3. FETCH SUN   GET https://api.sunrise-sunset.org/json?lat=...&lng=...&formatted=0
@@ -97,22 +107,22 @@ TO_EMAIL=recipient@example.com
 4. CHECK       ISS lat/lon within ±5° of MY_LAT/MY_LONG?
                Current hour outside sunrise..sunset window?
 5. NOTIFY      If both true → SMTP sendmail to TO_EMAIL
-               Otherwise    → log and sleep
+               Otherwise    → log and exit 0
 ```
 
 ---
 
 ## Features
 
-**ISS position polling.** Every 60 seconds the script hits the Open Notify API and reads the current ISS latitude and longitude. No API key required.
+**ISS position check.** The script hits the Open Notify API and reads the current ISS latitude and longitude. No API key required.
 
 **Sunrise/sunset gating.** Before sending a notification the script checks the Sunrise-Sunset API for the current sunrise and sunset hours at your location. An email is only sent if it is dark — there is no point alerting you to an invisible station.
 
 **Email notification.** When both conditions are met a plain-text email with subject "Look Up!" is sent via Gmail SMTP using `starttls` and an app password.
 
-**Per-iteration error handling (advanced only).** Each loop iteration is wrapped in `try/except`. An API timeout or SMTP failure prints an error and moves on to the next iteration — the bot does not crash.
+**GitHub Actions scheduling (advanced only).** The workflow runs every 5 minutes on GitHub's infrastructure — no Raspberry Pi, no VPS, no always-on process. Free for public repositories.
 
-**Run counter logging (advanced only).** Every iteration prints its run number, the overhead and night booleans, and whether an email was sent. This makes it easy to see the bot is alive without opening the terminal constantly.
+**Manual trigger (advanced only).** The `workflow_dispatch` event lets you trigger a check instantly from the Actions tab without waiting for the next cron tick. Useful for testing.
 
 **Configurable threshold (advanced only).** `OVERHEAD_THRESHOLD` in `config.py` controls the degree window. Change it once; it takes effect everywhere.
 
@@ -125,44 +135,41 @@ TO_EMAIL=recipient@example.com
 ```
 python menu.py
 │
-├── 1  →  original/main.py   (runs until Ctrl-C; menu reappears after)
-├── 2  →  advanced/main.py   (runs until Ctrl-C; menu reappears after)
+├── 1  →  original/main.py   (polling loop; runs until Ctrl-C; menu reappears after)
+├── 2  →  advanced/main.py   (single check; exits immediately; menu reappears after)
 └── q  →  exit
          (any other input → "Invalid choice. Try again." → re-prompt)
 ```
 
-### b) Execution flow
+### b) Execution flow (advanced)
 
 ```
-┌─────────────────────────────────────────┐
-│  START  advanced/main.py                │
-│  Load .env, init ISSClient + Notifier   │
-└───────────────┬─────────────────────────┘
+┌─────────────────────────────────────────────┐
+│  TRIGGER  GitHub Actions cron / manual      │
+│  Set env vars from repository secrets       │
+│  pip install -r requirements.txt            │
+│  python advanced/main.py                    │
+└───────────────┬─────────────────────────────┘
                 │
                 ▼
-┌─────────────────────────────────────────┐
-│  time.sleep(CHECK_INTERVAL)             │
-└───────────────┬─────────────────────────┘
+┌─────────────────────────────────────────────┐
+│  Load .env (local only — no-op on Actions)  │
+│  Init ISSClient + EmailNotifier             │
+└───────────────┬─────────────────────────────┘
                 │
                 ▼
-┌─────────────────────────────────────────┐
-│  try:                                   │
-│    ISSClient.is_overhead()              │
-│      API error → raise → except block  │
-│    ISSClient.is_night()                 │
-│      API error → raise → except block  │
-│                                         │
-│    overhead AND night?                  │
-│      YES → EmailNotifier.send()         │
-│              SMTP error → raise → except│
-│              success → log "email sent" │
-│      NO  → log "no action"              │
-│                                         │
-│  except Exception as e:                 │
-│    print error, continue loop           │
-└───────────────┬─────────────────────────┘
-                │
-                └──── back to sleep ──────┘
+┌─────────────────────────────────────────────┐
+│  ISSClient.is_overhead()                    │
+│    API error → exception propagates → exit 1│
+│  ISSClient.is_night()                       │
+│    API error → exception propagates → exit 1│
+│                                             │
+│  overhead AND night?                        │
+│    YES → EmailNotifier.send()               │
+│            SMTP error → exception → exit 1  │
+│            success → print + exit 0         │
+│    NO  → print "no action" + exit 0         │
+└─────────────────────────────────────────────┘
 ```
 
 ---
@@ -172,25 +179,29 @@ python menu.py
 ```
 iss-overhead-notifier/
 │
-├── menu.py              # interactive launcher — runs original/ or advanced/
-├── art.py               # LOGO ascii art printed by menu.py
-├── requirements.txt     # pip dependencies
-├── .env.example         # template for required environment variables
+├── .github/
+│   └── workflows/
+│       └── iss-check.yml    # cron schedule + secrets → runs advanced/main.py
+│
+├── menu.py                  # interactive launcher — runs original/ or advanced/
+├── art.py                   # LOGO ascii art printed by menu.py
+├── requirements.txt         # pip dependencies
+├── .env.example             # template for required environment variables
 ├── .gitignore
 ├── README.md
 │
 ├── docs/
-│   └── COURSE_NOTES.md  # original exercise description and concepts
+│   └── COURSE_NOTES.md      # original exercise description and concepts
 │
 ├── original/
-│   ├── main.py          # course build verbatim (credentials via os.environ)
-│   └── config.py        # location + SMTP constants (credentials via os.environ)
+│   ├── main.py              # course build verbatim (credentials via os.environ)
+│   └── config.py            # location + SMTP constants (credentials via dummy values)
 │
 └── advanced/
-    ├── config.py        # all constants grouped by category
-    ├── iss_client.py    # ISSClient — ISS position + night check
-    ├── notifier.py      # EmailNotifier — SMTP send
-    └── main.py          # orchestrator — wires classes, owns the run loop
+    ├── config.py            # all constants grouped by category
+    ├── iss_client.py        # ISSClient — ISS position + night check
+    ├── notifier.py          # EmailNotifier — SMTP send
+    └── main.py              # single-run orchestrator — check once, exit
 ```
 
 ---
@@ -215,7 +226,7 @@ iss-overhead-notifier/
 
 ## Configuration reference
 
-All constants live in `advanced/config.py`.
+All constants live in `advanced/config.py`. The check interval is controlled by the cron expression in `.github/workflows/iss-check.yml`.
 
 | Constant | Default | Description |
 |----------|---------|-------------|
@@ -226,7 +237,6 @@ All constants live in `advanced/config.py`.
 | `OVERHEAD_THRESHOLD` | `5` | Degrees — ISS must be within this range on both axes |
 | `SMTP_HOST` | `smtp.gmail.com` | Gmail SMTP server |
 | `SMTP_PORT` | `587` | SMTP STARTTLS port |
-| `CHECK_INTERVAL` | `60` | Seconds to sleep between position checks |
 
 ---
 
@@ -277,7 +287,8 @@ No files are written. No state is persisted between runs.
 
 ## Environment variables
 
-Copy `.env.example` to `.env` and fill in values.
+**Local runs:** copy `.env.example` to `.env` and fill in values.
+**GitHub Actions:** add the same variables as repository secrets (Settings → Secrets and variables → Actions).
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -291,31 +302,27 @@ Copy `.env.example` to `.env` and fill in values.
 
 ## Design decisions
 
-**`config.py` — zero magic numbers.** Every URL, coordinate, threshold, port, and interval is named in one place. A future change to the overhead window or check frequency requires editing exactly one line.
+**GitHub Actions instead of a polling loop.** The original build runs a `while True` loop and needs an always-on machine (Raspberry Pi, VPS). The advanced build is a single-run script triggered by a cron workflow — GitHub runs it every 5 minutes on free infrastructure. No server to maintain, no process to restart, and the run history is logged automatically in the Actions tab.
+
+**`config.py` — zero magic numbers.** Every URL, coordinate, threshold, and port is named in one place. A future change to the overhead window requires editing exactly one line.
 
 **Separate `ISSClient` and `EmailNotifier` modules.** Each class has one job. `ISSClient` can be tested without an SMTP server; `EmailNotifier` can be tested without hitting any external API. Swapping the HTTP library or the email provider touches exactly one file.
 
-**Credentials via `.env`, never hardcoded.** The original course file stored a real Gmail app password as a string literal. The advanced build (and the `original/` copy) reads credentials from environment variables so the source code is safe to commit and share.
+**Credentials via secrets, never hardcoded.** Locally via `.env`, on GitHub Actions via repository secrets. The same `os.environ["MY_EMAIL"]` call works in both environments — `load_dotenv` is a no-op when no `.env` exists (GitHub Actions), and populates env vars when it does (local).
 
-**`.env.example` committed, `.env` gitignored.** Anyone cloning the repo knows exactly which variables they need without ever seeing a real credential. The `.gitignore` entry was present from the very first commit so there is no window during which a real `.env` could have been staged.
+**`.env.example` committed, `.env` gitignored.** Anyone cloning the repo knows exactly which variables they need without ever seeing a real credential.
 
-**`Path(__file__).parent` for all paths.** The script works correctly whether it is launched from `menu.py` (which sets `cwd` to the script's own directory) or invoked directly from any other working directory.
+**`Path(__file__).parent` for all paths.** The script works correctly whether launched from `menu.py`, run directly, or invoked by GitHub Actions from the repo root.
 
-**Pure-logic modules raise exceptions instead of `sys.exit()`.** `ISSClient` and `EmailNotifier` signal failure by raising. `main.py` decides what to do — in this case, log the error and keep looping. This separation means the modules can be reused or tested without side effects.
+**Pure-logic modules raise exceptions instead of `sys.exit()`.** `ISSClient` and `EmailNotifier` signal failure by raising. `main.py` (and GitHub Actions) decides what to do — a non-zero exit code marks the run as failed in the Actions UI.
 
-**`sys.path.insert` pattern.** Both `iss_client.py` and `notifier.py` insert their own directory at the front of `sys.path` so sibling imports (`from config import ...`) work whether the file is run directly or imported by `main.py`.
+**`sys.path.insert` pattern.** Sibling imports (`from config import ...`) work whether the file is run directly, imported by `main.py`, or invoked via `python advanced/main.py` from the repo root.
 
-**`subprocess.run` with `cwd=`.** `menu.py` launches each build with `cwd` set to the build's own directory. This means the launched script's relative imports and any relative file paths resolve correctly without altering the parent process's working directory.
+**`subprocess.run` with `cwd=`.** `menu.py` launches each build with `cwd` set to the build's own directory so relative imports resolve correctly.
 
-**`while True` in `menu.py` vs recursion.** The menu re-renders by looping, not by calling itself. A recursive approach would grow the stack on every menu return — harmless for a few invocations, but wrong in principle.
+**`while True` in `menu.py` vs recursion.** The menu re-renders by looping, not by calling itself — no stack growth on each return.
 
-**Console cleared before every menu render.** Each loop iteration clears the terminal before printing the menu. This prevents the output of the previous build from cluttering the menu and gives a clean UX.
-
-**`time.sleep` at the bottom of the loop.** The check runs immediately on startup (conceptually — actually sleeps first to match the original course build), then waits. Putting `sleep` at the bottom of the loop body means the interval is consistent regardless of how long the API calls take.
-
-**`try/except` per iteration, not around the whole loop.** A network timeout or an SMTP error on one check does not kill the bot. The exception is caught, logged, and the loop continues. Wrapping the entire `while True` would cause the bot to die on the first transient failure.
-
-**Run count as a one-element list.** `run_count: list[int] = [0]` is a mutable cell that can be incremented inside the loop body without `global` or `nonlocal`. It is the idiomatic Python pattern for shared mutable state in a closure or loop where `nonlocal` is unavailable or undesirable.
+**Console cleared only on transition, not on invalid input.** The `clear` flag ensures the screen clears on first draw and after a build exits, but error messages stay visible long enough to read.
 
 ---
 
@@ -333,9 +340,9 @@ Built as **Day 33** of *100 Days of Code: The Complete Python Pro Bootcamp* by D
 
 **The advanced build extends into:**
 - OOP design — encapsulating API concerns in `ISSClient` and email concerns in `EmailNotifier`
-- Credential management with `python-dotenv`
+- Credential management with `python-dotenv` and GitHub Actions secrets
 - Centralised configuration in `config.py`
-- Per-iteration error handling in a polling loop
+- Serverless scheduling via GitHub Actions cron workflows
 - Module isolation and testability
 
 See [docs/COURSE_NOTES.md](docs/COURSE_NOTES.md) for the full concept breakdown.
@@ -349,8 +356,8 @@ See [docs/COURSE_NOTES.md](docs/COURSE_NOTES.md) for the full concept breakdown.
 | `requests` | original, advanced | HTTP GET requests to Open Notify and Sunrise-Sunset APIs |
 | `smtplib` | original, advanced | Sending email via Gmail SMTP (standard library) |
 | `datetime` | original, advanced | Getting current hour for sunrise/sunset comparison (standard library) |
-| `time` | original, advanced | `time.sleep()` for polling interval (standard library) |
-| `python-dotenv` | advanced | Loading `.env` credentials into `os.environ` |
-| `os` | original, advanced | `os.environ.get()` for credential access (standard library) |
+| `time` | original | `time.sleep()` for polling interval (standard library) |
+| `python-dotenv` | advanced | Loading `.env` credentials into `os.environ` for local runs |
+| `os` | original, advanced | `os.environ` for credential access (standard library) |
 | `pathlib` | advanced | `Path(__file__).parent` for portable file paths (standard library) |
 | `sys` | advanced | `sys.path.insert` for sibling imports (standard library) |
