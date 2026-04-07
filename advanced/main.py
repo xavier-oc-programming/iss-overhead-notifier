@@ -21,7 +21,6 @@ notifier = EmailNotifier(
 run_count: list[int] = [0]
 
 while True:
-    time.sleep(CHECK_INTERVAL)
     run_count[0] += 1
     try:
         overhead = client.is_overhead()
@@ -38,3 +37,4 @@ while True:
             )
     except Exception as e:
         print(f"[run {run_count[0]}] Error: {e}")
+    time.sleep(CHECK_INTERVAL)
