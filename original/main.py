@@ -3,7 +3,14 @@ import requests
 from datetime import datetime
 import smtplib
 import time
-from config import MY_LAT, MY_LONG, MY_EMAIL, MY_PASSWORD, TO_EMAIL, SMTP_PORT
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent.parent / ".env")
+import os
+from config import MY_LAT, MY_LONG, SMTP_PORT
+MY_EMAIL = os.environ["MY_EMAIL"]
+MY_PASSWORD = os.environ["MY_PASSWORD"]
+TO_EMAIL = os.environ["TO_EMAIL"]
 
 # ----------------- FUNCTIONS -----------------
 def is_iss_overhead():
