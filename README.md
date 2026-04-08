@@ -4,6 +4,7 @@ Checks the ISS position every 5 minutes via GitHub Actions and sends an email no
 
 ## Table of Contents
 
+- [Prerequisites](#prerequisites)
 - [Quick start](#quick-start)
 - [Builds comparison](#builds-comparison)
 - [Usage](#usage)
@@ -18,6 +19,74 @@ Checks the ISS position every 5 minutes via GitHub Actions and sends an email no
 - [Design decisions](#design-decisions)
 - [Course context](#course-context)
 - [Dependencies](#dependencies)
+
+---
+
+## Prerequisites
+
+No paid services required. Everything below is free.
+
+---
+
+### 1. ISS Position API — no signup
+
+Open Notify is a public API that requires no key.
+
+| `.env` variable | Value |
+|-----------------|-------|
+| *(none)* | The URL is hardcoded in `config.py` as `ISS_API_URL` |
+
+Nothing to do here — it just works.
+
+---
+
+### 2. Sunrise-Sunset API — no signup
+
+Also a public API, no key required.
+
+| `.env` variable | Value |
+|-----------------|-------|
+| *(none)* | The URL is hardcoded in `config.py` as `SUNRISE_SUNSET_API_URL` |
+
+Nothing to do here either. If you want to change the location being checked, update `MY_LAT` and `MY_LONG` in `advanced/config.py`.
+
+**Finding your coordinates:**
+1. Open Google Maps and right-click your location.
+2. The first item in the context menu is the lat/lon pair — click it to copy.
+3. Paste the two values into `MY_LAT` and `MY_LONG`.
+
+---
+
+### 3. Gmail SMTP — app password required
+
+The script sends email through Gmail. You need a Gmail account with 2-Step Verification enabled, then generate an **app password** (a 16-character code that lets the script log in without your real password).
+
+**Step-by-step:**
+
+1. Go to your Google Account: [myaccount.google.com](https://myaccount.google.com)
+2. Click **Security** in the left sidebar.
+3. Under "How you sign in to Google", click **2-Step Verification** and enable it if not already on.
+4. Back on the Security page, use the search bar at the top and search **"App passwords"**.
+5. Click **App passwords**, then create a new one — name it anything (e.g. "ISS Notifier").
+6. Google will show a 16-character password **once** — copy it immediately.
+
+| `.env` variable | Where to find the value |
+|-----------------|------------------------|
+| `MY_EMAIL` | Your Gmail address (e.g. `you@gmail.com`) |
+| `MY_PASSWORD` | The 16-character app password from step 6 above |
+| `TO_EMAIL` | Any email address you want the notification sent to |
+
+> `MY_EMAIL` and `TO_EMAIL` can be the same address if you want to email yourself.
+
+**Paste the values into `.env`:**
+
+```
+MY_EMAIL=you@gmail.com
+MY_PASSWORD=abcd efgh ijkl mnop
+TO_EMAIL=recipient@example.com
+```
+
+> The app password may be shown with spaces — remove them when pasting.
 
 ---
 
