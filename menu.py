@@ -21,8 +21,10 @@ while True:
 
     if choice == "1":
         subprocess.run([sys.executable, str(ORIGINAL)], cwd=str(ORIGINAL.parent))
+        input("\nPress Enter to return to menu...")
     elif choice == "2":
         subprocess.run([sys.executable, str(ADVANCED)], cwd=str(ADVANCED.parent))
+        input("\nPress Enter to return to menu...")
     elif choice == "q":
         break
     else:
